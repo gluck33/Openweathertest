@@ -110,5 +110,4 @@ public class WeatherProvider extends SQLiteTableProvider{
         String HUMIDITY             = "humidity";
         }
 
-
 }

@@ -14,12 +14,9 @@ import java.net.URL;
 public class WeatherHttpClient {
     private final static String BASE_URL = "http://api.openweathermap.org/data/2.5/weather?id=";
     private final static String OPTIONS = "&lang=ru&units=metric";
-    private static final String FIND_OPTIONS = "&type=accurate";
+    private static final String FIND_OPTIONS = "&type=like";
     private static String BASE_FORECAST_URL = "http://api.openweathermap.org/data/2.5/forecast/daily?mode=json&id=";
     private static String BASE_FIND_URL = "http://api.openweathermap.org/data/2.5/find?q=";
-    private String locationID;
-
-
 
     public String getWeatherData(URL url){
         HttpURLConnection connection = null;
@@ -31,12 +28,12 @@ public class WeatherHttpClient {
             connection.setDoInput(true);
             connection.setDoOutput(true);
             connection.connect();
-            StringBuffer stringBuffer = new StringBuffer();
+            StringBuilder stringBuffer = new StringBuilder();
             inputStream = connection.getInputStream();
             BufferedReader br = new BufferedReader(new InputStreamReader(inputStream));
             String line = null;
             while ( (line = br.readLine())!=null ){
-                stringBuffer.append(line + "\r\n");
+                stringBuffer.append(line).append("\r\n");
             }
             inputStream.close();
             connection.disconnect();
@@ -46,13 +43,14 @@ public class WeatherHttpClient {
         }
         finally {
             try {
+                assert inputStream != null;
                 inputStream.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }
             try {
                 connection.disconnect();
-            } catch (Throwable t){}
+            } catch (Throwable ignored){}
         }
         return null;
     }

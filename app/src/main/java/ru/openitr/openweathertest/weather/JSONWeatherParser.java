@@ -1,4 +1,4 @@
-package ru.openitr.openweathertest;
+package ru.openitr.openweathertest.weather;
 
 import android.content.ContentValues;
 
@@ -10,7 +10,6 @@ import java.util.ArrayList;
 
 import ru.openitr.openweathertest.sqlite.LocationsProvider;
 import ru.openitr.openweathertest.sqlite.WeatherProvider;
-import ru.openitr.openweathertest.weather.Weather;
 
 /**
  * Created by Oleg Balditsyn on 03.07.14.
@@ -27,16 +26,38 @@ public class JSONWeatherParser {
         result.put(LocationsProvider.Columns.CITY_NAME, getString("name", jsonObject));
         result.put(LocationsProvider.Columns.CITY_LAT, getFloat("lat", coordObj));
         result.put(LocationsProvider.Columns.CITY_LON, getFloat("lon", coordObj));
-
         JSONObject sysObj = getObject("sys", jsonObject);
+        result.put(LocationsProvider.Columns.CITY_COUNTRY, getString("country", sysObj));
 
         result.put(LocationsProvider.Columns.CITY_SUNRISE, getInt("sunrise", sysObj));
         result.put(LocationsProvider.Columns.CITY_SUNSET, getInt("sunset", sysObj));
 
         JSONObject mainObj = getObject("main", jsonObject);
 
-        result.put(LocationsProvider.Columns.CITY_TEMP, getFloat("temp", mainObj));
+        result.put(LocationsProvider.Columns.CITY_TEMP, getFloat("temp", mainObj) + "\u2103");
 
+        return result;
+    }
+
+    public static ArrayList<ContentValues> getLocationsInfo(String data){
+        ArrayList<ContentValues> result = new ArrayList<ContentValues>();
+        ContentValues resultItem = new ContentValues();
+        try {
+            JSONObject jsonObject = new JSONObject(data);
+            JSONArray jsonCityList = jsonObject.getJSONArray("list");
+            for (int i = 0; i < jsonCityList.length(); i++){
+                resultItem.clear();
+                JSONObject cityListItem = jsonCityList.getJSONObject(i);
+                resultItem.put(LocationsProvider.Columns.CITY_ID, getInt("id", cityListItem));
+                resultItem.put(LocationsProvider.Columns.CITY_NAME, getString("name", cityListItem));
+                JSONObject jsonSys = cityListItem.getJSONObject("sys");
+                resultItem.put(LocationsProvider.Columns.CITY_COUNTRY, getString("country", jsonSys));
+                result.add(new ContentValues(resultItem));
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+            return null;
+        }
         return result;
     }
 
@@ -75,8 +96,7 @@ public class JSONWeatherParser {
     }
 
     private static JSONObject getObject(String tagName, JSONObject jObj)  throws JSONException {
-        JSONObject subObj = jObj.getJSONObject(tagName);
-        return subObj;
+        return jObj.getJSONObject(tagName);
     }
 
     private static String getString(String tagName, JSONObject jObj) throws JSONException {

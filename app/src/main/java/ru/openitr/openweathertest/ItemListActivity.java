@@ -1,5 +1,6 @@
 package ru.openitr.openweathertest;
 
+import android.app.FragmentManager;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
@@ -7,7 +8,8 @@ import android.database.Cursor;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.app.Activity;
-import android.util.Log;
+import android.view.View;
+import android.widget.EditText;
 
 import org.json.JSONException;
 
@@ -15,6 +17,7 @@ import java.util.ArrayList;
 
 import ru.openitr.openweathertest.sqlite.LocationsProvider;
 import ru.openitr.openweathertest.sqlite.WeatherProvider;
+import ru.openitr.openweathertest.weather.JSONWeatherParser;
 import ru.openitr.openweathertest.weather.WeatherHttpClient;
 
 
@@ -35,13 +38,16 @@ import ru.openitr.openweathertest.weather.WeatherHttpClient;
  * to listen for item selections.
  */
 public class ItemListActivity extends Activity
-        implements ItemListFragment.Callbacks {
+        implements ItemListFragment.Callbacks, SelectionListener {
 
     /**
      * Whether or not the activity is in two-pane mode, i.e. running on a tablet
      * device.
      */
+    public final static int ACTION_GET_WEATHER = 1;
     private boolean mTwoPane;
+    public ContentResolver lcr;
+    private ArrayList<ContentValues> cityListContentVal;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,8 +67,8 @@ public class ItemListActivity extends Activity
                     .findFragmentById(R.id.item_list))
                     .setActivateOnItemClick(true);
         }
-
-        //new GetWeatherTask().execute("484972");
+        lcr = getContentResolver();
+        new GetWeatherTask().execute(ACTION_GET_WEATHER);
     }
 
     /**
@@ -92,16 +98,49 @@ public class ItemListActivity extends Activity
         }
     }
 
-    public class GetWeatherTask extends AsyncTask<String, String, String>{
+    public void clickAddButton(View view){
+        EditText searchText = (EditText) findViewById(R.id.searchEditText);
+        new AddCityTask().execute(searchText.getText().toString());
+    }
+
+
+
+    void showChoiceCityDialog(ArrayList<ContentValues> cityList){
+        ArrayList<String> items = new ArrayList<String>();
+        for (ContentValues item : cityList) {
+            items.add(item.getAsString(LocationsProvider.Columns.CITY_NAME)
+                    + ", " + item.getAsString(LocationsProvider.Columns.CITY_COUNTRY));
+        }
+        FragmentManager manager = getFragmentManager();
+        ChoiceCityDialog dialog = new ChoiceCityDialog();
+        Bundle bundle = new Bundle();
+        bundle.putStringArrayList(ChoiceCityDialog.DATA, items);
+        bundle.putInt(ChoiceCityDialog.SELECTED, 0);
+        dialog.setArguments(bundle);
+        dialog.show(manager, "Dialog");
+    }
+
+    @Override
+    public void selectItem(int position) {
+        addCity(cityListContentVal.get(position));
+    }
+
+    public void addCity(ContentValues contentValues){
+        lcr.insert(LocationsProvider.URI, contentValues);
+        lcr.notifyChange(LocationsProvider.URI,null);
+        new GetWeatherTask().execute(0);
+    }
+
+    public class GetWeatherTask extends AsyncTask<Integer, Integer, String>{
 
         @Override
-        protected String doInBackground(String... params) {
+        protected String doInBackground(Integer... params) {
             refreshForecastWeather(params[0]);
+            lcr.notifyChange(LocationsProvider.URI, null);
             return null;
         }
 
-        private void refreshForecastWeather(String param) {
-            ContentResolver lcr = getContentResolver();
+        private void refreshForecastWeather(int param) {
             Cursor locationsCursor = lcr.query(LocationsProvider.URI,
                     new String[] {LocationsProvider.Columns.CITY_ID},null,null, null);
             lcr.delete(WeatherProvider.URI,null,null);
@@ -110,34 +149,48 @@ public class ItemListActivity extends Activity
                     String StrCity_Id = String.valueOf(cityId);
                     String locData = (new WeatherHttpClient().getWeatherData(StrCity_Id));
 
-                    //Обновляем locations.
+                    //locations.
                     try {
                         ContentValues lcv = JSONWeatherParser.getLocationInfo(locData);
-                        int cr = lcr.update(LocationsProvider.URI,
+                        lcr.update(LocationsProvider.URI,
                                 lcv,
                                 LocationsProvider.Columns.CITY_ID + " = ?",
                                 new String[]{StrCity_Id});
-                        Log.d("qqq", "changed "+String.valueOf(cr)+ "records.");
-
                         String data = (new WeatherHttpClient()).getForecastWeatherData(StrCity_Id, "3");
 
-                        //Обновляем weathers.
+                        //forecast weathers.
                         try {
                             ArrayList<ContentValues> wcv = JSONWeatherParser.getForecastWeather(data);
-                            for (int i = 0; i < wcv.size(); i++){
-                                lcr.insert(WeatherProvider.URI, wcv.get(i));
+                            for (ContentValues aWcv : wcv) {
+                                lcr.insert(WeatherProvider.URI, aWcv);
                             }
                         } catch (JSONException e) {
                             e.printStackTrace();
                         }
-
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
                 }
-
+                locationsCursor.close();
         }
 
+    }
+
+    private class AddCityTask extends AsyncTask<String, Integer, Integer>{
+        @Override
+        protected Integer doInBackground(String... params) {
+            String findData = new WeatherHttpClient().findLocation(params[0]);
+            cityListContentVal = JSONWeatherParser.getLocationsInfo(findData);
+            switch (cityListContentVal.size()){
+                case 0: return null;
+                case 1: addCity(cityListContentVal.get(0));
+                        break;
+                default: showChoiceCityDialog(cityListContentVal);
+                        break;
+            }
+            lcr.notifyChange(LocationsProvider.URI,null);
+            return null;
+        }
     }
 
 }

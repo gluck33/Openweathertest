@@ -2,6 +2,7 @@
 <resources>
 
     <string name="app_name">Openweathertest</string>
-    <string name="title_item_detail">Item Detail</string>
-
+    <string name="title_item_detail">Detail and forecast</string>
+    <string name="add_action">Add</string>
+    <string name="add_city_hint">Add city to list</string>
 </resources>

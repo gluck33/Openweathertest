@@ -2,16 +2,16 @@ package ru.openitr.openweathertest;
 
 import android.app.Activity;
 import android.content.ContentResolver;
+import android.database.ContentObserver;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.app.ListFragment;
+import android.os.Handler;
 import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.CursorAdapter;
 import android.widget.ListView;
 import android.widget.SimpleCursorAdapter;
 
-import ru.openitr.openweathertest.dummy.DummyContent;
 import ru.openitr.openweathertest.sqlite.LocationsProvider;
 
 /**
@@ -25,6 +25,9 @@ import ru.openitr.openweathertest.sqlite.LocationsProvider;
  */
 public class ItemListFragment extends ListFragment {
     CursorAdapter locationsAdapter;
+    static public ContentObserver observer;
+    public Cursor locCursor;
+    private ContentResolver contentResolver;
     /**
      * The serialization (saved instance state) Bundle key representing the
      * activated item position. Only used on tablets.
@@ -74,12 +77,23 @@ public class ItemListFragment extends ListFragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        contentResolver = getActivity().getContentResolver();
+        observer = new ContentObserver(new Handler()) {
+            @Override
+            public void onChange(boolean selfChange) {
+                super.onChange(selfChange);
+                if (locCursor != null){
+                    locCursor.requery();
+                    locationsAdapter.notifyDataSetChanged();
+                }
+
+            }
+        };
         setAdapter();
     }
 
     private void setAdapter() {
-        ContentResolver contentResolver = getActivity().getContentResolver();
-        Cursor locCursor = contentResolver.query(LocationsProvider.URI,LocationsProvider.Columns.ALL_COLUMNS,null,null,null);
+        locCursor = contentResolver.query(LocationsProvider.URI,null,null,null,null);
         String[] from = new String[]{
                 LocationsProvider.Columns.CITY_NAME,
                 LocationsProvider.Columns.CITY_TEMP
@@ -95,8 +109,11 @@ public class ItemListFragment extends ListFragment {
                 from,
                 to,
                 0);
+
         setListAdapter(locationsAdapter);
     }
+
+
 
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
@@ -127,6 +144,18 @@ public class ItemListFragment extends ListFragment {
 
         // Reset the active callbacks interface to the dummy implementation.
         mCallbacks = sDummyCallbacks;
+        contentResolver.unregisterContentObserver(observer);
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        contentResolver.registerContentObserver(LocationsProvider.URI, true, observer);
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
     }
 
     @Override
@@ -135,7 +164,8 @@ public class ItemListFragment extends ListFragment {
 
         // Notify the active callbacks interface (the activity, if the
         // fragment is attached to one) that an item has been selected.
-        mCallbacks.onItemSelected(DummyContent.ITEMS.get(position).id);
+
+        mCallbacks.onItemSelected(String.valueOf(position));
     }
 
     @Override
